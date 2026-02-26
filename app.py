@@ -38,28 +38,29 @@ try:
         tiles="cartodbdarkmatter"
     )
 
-    # 4. 繪製 raw_data：#4F9D9D 藝術化 6px 漣漪
+    # 4. 繪製 raw_data：#4F9D9D 藝術化淡化漣漪
     for _, row in raw_data.iterrows():
+        # 優化後的淡化動畫：增加末端模糊與快速透明化
         ripple_html = f"""
         <div style="position: relative; width: 40px; height: 40px; display: flex; justify-content: center; align-items: center;">
             <style>
-                @keyframes artistic_ripple_6px {{
-                    0% {{ transform: scale(1); opacity: 0; }}
-                    20% {{ opacity: 0.8; }}
-                    100% {{ transform: scale(2.5); opacity: 0; filter: blur(2px); }}
+                @keyframes fading_ripple {{
+                    0% {{ transform: scale(0.8); opacity: 0; }}
+                    20% {{ opacity: 0.6; }} /* 波紋出現 */
+                    100% {{ transform: scale(3.5); opacity: 0; filter: blur(4px); }} /* 擴散並徹底淡化 */
                 }}
             </style>
             <div style="position: absolute; width: 6px; height: 6px; 
                         background-color: #4F9D9D; border-radius: 50%; 
-                        box-shadow: 0 0 8px 1px #4F9D9D; z-index: 1000;"></div>
+                        box-shadow: 0 0 6px 1px #4F9D9D; z-index: 1000;"></div>
             
-            <div style="position: absolute; width: 15px; height: 15px; 
+            <div style="position: absolute; width: 12px; height: 12px; 
                         border: 0.8px solid #4F9D9D; border-radius: 50%; 
-                        animation: artistic_ripple_6px 4s infinite ease-out; z-index: 999;"></div>
+                        animation: fading_ripple 4s infinite ease-out; z-index: 999;"></div>
             
-            <div style="position: absolute; width: 15px; height: 15px; 
+            <div style="position: absolute; width: 12px; height: 12px; 
                         border: 0.4px solid #4F9D9D; border-radius: 50%; 
-                        animation: artistic_ripple_6px 4s infinite 2s ease-out; z-index: 998;"></div>
+                        animation: fading_ripple 4s infinite 2s ease-out; z-index: 998;"></div>
         </div>
         """
         folium.Marker(
@@ -77,7 +78,7 @@ try:
         yellow_glow_html = f"""
         <div style="position: relative; width: 24px; height: 24px; display: flex; justify-content: center; align-items: center;">
             <div style="width: 6px; height: 6px; background-color: #f1c40f; border-radius: 50%; 
-                        box-shadow: 0 0 10px 3px rgba(241, 196, 15, 0.5); z-index: 1000;"></div>
+                        box-shadow: 0 0 10px 3px rgba(241, 196, 15, 0.4); z-index: 1000;"></div>
         </div>
         """
         folium.Marker(
@@ -93,11 +94,6 @@ try:
     # 6. 呈現地圖
     st.markdown("<h2 style='text-align: center; color: #4F9D9D; font-weight: 200;'>🌿 台灣蛙鳴環境聲景地圖</h2>", unsafe_allow_html=True)
     folium_static(m, width=1100, height=600)
-
-    # 側邊欄
-    st.sidebar.markdown(f"### 🌙 聲景統計")
-    st.sidebar.metric("原始波動 (#4F9D9D)", len(raw_data))
-    st.sidebar.metric("已驗證點位 (黃光)", len(verified_data))
 
 except Exception as e:
     st.error(f"地圖啟動失敗：{e}")

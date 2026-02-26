@@ -7,7 +7,7 @@ from streamlit_folium import st_folium
 st.set_page_config(page_title="台灣蛙鳴監測地圖", layout="wide")
 st.title("🐸 台灣青蛙鳴聲監測：純藍水紋波浪版")
 
-# 2. 定義擬真藍色水波紋 CSS
+# 2. 定義擬真藍色水波紋 CSS (水滴擴散感)
 st.markdown("""
 <style>
 @keyframes ripple-wave {
@@ -36,24 +36,22 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 3. 讀取資料
+# 3. 讀取 raw_data.csv
 def load_data():
     try:
+        # 強制讀取 raw_data.csv
         df = pd.read_csv("raw_data.csv")
-        # 清理標題空格並強制轉換座標為數字
-        df.columns = df.columns.str.strip()
+        df.columns = df.columns.str.strip() # 去除標題空格
+        # 強制將座標轉為數字，錯誤的會變成空值 NaN
         df['Latitude'] = pd.to_numeric(df['Latitude'], errors='coerce')
         df['Longitude'] = pd.to_numeric(df['Longitude'], errors='coerce')
+        # 移除沒有經緯度的資料列
         return df.dropna(subset=['Latitude', 'Longitude'])
-    except:
+    except Exception as e:
+        st.error(f"檔案讀取失敗，請確認 raw_data.csv 是否正確存在。錯誤資訊: {e}")
         return None
 
 df = load_data()
 
 # 4. 建立地圖 (深色背景)
-m = folium.Map(location=[23.6, 121.0], zoom_start=7, tiles="CartoDB dark_matter")
-
-# 5. 強制畫出藍色水波紋
-if df is not None and not df.empty:
-    for _, row in df.iterrows():
-        # HTML 結構：一個發光
+m = folium.Map(location=[23.6, 121

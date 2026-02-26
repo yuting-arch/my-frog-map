@@ -3,16 +3,16 @@ import pandas as pd
 import folium
 from streamlit_folium import st_folium
 
-# 1. 網頁設定
+# 1. 網頁基本設定
 st.set_page_config(page_title="台灣蛙鳴監測地圖", layout="wide")
-st.title("🐸 台灣青蛙鳴聲監測：精準分流版")
+st.title("🐸 台灣青蛙鳴聲監測：強制分色波動版")
 
-# 2. 定義藍色水波紋 CSS (模擬您要的動態感)
+# 2. 定義藍色水波紋 CSS (加強擴散層次感)
 st.markdown("""
 <style>
 @keyframes ripple-wave {
   0% { transform: scale(0.3); opacity: 1; }
-  100% { transform: scale(4.0); opacity: 0; }
+  100% { transform: scale(4.5); opacity: 0; }
 }
 .ripple-container {
     position: relative; width: 0; height: 0;
@@ -20,65 +20,53 @@ st.markdown("""
 }
 .ripple-core {
     width: 10px; height: 10px; background: #00FFFF;
-    border-radius: 50%; box-shadow: 0 0 10px #00FFFF;
+    border-radius: 50%; box-shadow: 0 0 12px #00FFFF;
     position: absolute; z-index: 10;
 }
-.ripple-out {
+.ripple-out-1 {
     position: absolute; width: 40px; height: 40px;
     border: 2px solid #00BFFF; border-radius: 50%;
     animation: ripple-wave 2.5s infinite cubic-bezier(0, 0.2, 0.8, 1);
 }
+.ripple-out-2 {
+    position: absolute; width: 40px; height: 40px;
+    border: 1px solid #00BFFF; border-radius: 50%;
+    animation: ripple-wave 2.5s infinite 1.25s cubic-bezier(0, 0.2, 0.8, 1);
+}
 </style>
 """, unsafe_allow_html=True)
 
-# 3. 合併讀取並精準判斷
-def load_all_and_split():
+# 3. 讀取函數 (強制轉換座標)
+def force_load_data(file_name):
     try:
-        # 讀取兩個檔案
-        df1 = pd.read_csv("raw_data.csv")
-        df2 = pd.read_csv("verified_data.csv")
-        # 合併後移除重複項
-        df = pd.concat([df1, df2], ignore_index=True).drop_duplicates()
-        
-        # 清理格式
+        df = pd.read_csv(file_name)
         df.columns = df.columns.str.strip()
+        # 強制轉數字，失敗的會變空值
         df['Latitude'] = pd.to_numeric(df['Latitude'], errors='coerce')
         df['Longitude'] = pd.to_numeric(df['Longitude'], errors='coerce')
         return df.dropna(subset=['Latitude', 'Longitude'])
     except:
         return None
 
-df_all = load_all_and_split()
+# 讀取兩份原始檔案
+df_blue = force_load_data("raw_data.csv")
+df_yellow = force_load_data("verified_data.csv")
 
-# 4. 建立地圖
+# 4. 建立地圖 (深黑背景)
 m = folium.Map(location=[23.6, 121.0], zoom_start=7, tiles="CartoDB dark_matter")
 
-# 5. 根據『內容』決定點位樣式
-if df_all is not None:
-    for _, row in df_all.iterrows():
-        loc = [row['Latitude'], row['Longitude']]
-        
-        # 重要判斷：檢查 Review Identity 是否真的有字
-        # 如果是空的 (NaN) 或字數為 0，就視為待辨識
-        review_val = str(row.get('Review Identity', ''))
-        is_verified = pd.notna(row.get('Review Identity')) and review_val.strip() != "" and review_val.lower() != "nan"
-        
-        if not is_verified:
-            # 🌊 顯示藍色擬真波紋 (代表真的 Raw Data)
-            icon_html = '<div class="ripple-container"><div class="ripple-core"></div><div class="ripple-out"></div></div>'
-            folium.Marker(
-                location=loc,
-                icon=folium.DivIcon(html=icon_html),
-                popup=f"👤 待辨識點位<br>上傳者: {row.get('Username', '匿名')}"
-            ).add_to(m)
-        else:
-            # 🌟 顯示亮黃色燈號 (代表已專家辨識)
-            folium.CircleMarker(
-                location=loc,
-                radius=8, color='#FFFFE0', fill=True,
-                fill_color='#FFFF00', fill_opacity=0.9, weight=2,
-                popup=f"🐸 辨識結果: {review_val}"
-            ).add_to(m)
+# 5. 【強制】畫出藍色水波紋 (只要在 raw_data.csv 裡面的)
+if df_blue is not None:
+    for _, row in df_blue.iterrows():
+        icon_html = '<div class="ripple-container"><div class="ripple-core"></div><div class="ripple-out-1"></div><div class="ripple-out-2"></div></div>'
+        folium.Marker(
+            location=[row['Latitude'], row['Longitude']],
+            icon=folium.DivIcon(html=icon_html),
+            popup=f"🟦 原始報表點位<br>上傳者: {row.get('Username', '未知')}"
+        ).add_to(m)
 
-# 6. 呈現
-st_folium(m, width="100%", height=700)
+# 6. 【強制】畫出黃色燈號 (只要在 verified_data.csv 裡面的)
+if df_yellow is not None:
+    for _, row in df_yellow.iterrows():
+        folium.CircleMarker(
+            location=[row['

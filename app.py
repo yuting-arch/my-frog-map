@@ -38,67 +38,66 @@ try:
         tiles="cartodbdarkmatter"
     )
 
-    # 4. 繪製 raw_data：#4F9D9D 藝術化微型柔光漣漪
+    # 4. 繪製 raw_data：#4F9D9D 藝術化 6px 漣漪
     for _, row in raw_data.iterrows():
-        # 微型動畫：縮放幅度極小(1.0->1.3)，並搭配模糊與慢速淡出
         ripple_html = f"""
-        <div style="position: relative; width: 30px; height: 30px; display: flex; justify-content: center; align-items: center;">
+        <div style="position: relative; width: 40px; height: 40px; display: flex; justify-content: center; align-items: center;">
             <style>
-                @keyframes soft_micro_ripple {{
+                @keyframes artistic_ripple_6px {{
                     0% {{ transform: scale(1); opacity: 0; }}
-                    20% {{ opacity: 0.7; }}
-                    100% {{ transform: scale(1.3); opacity: 0; filter: blur(2px); }}
+                    20% {{ opacity: 0.8; }}
+                    100% {{ transform: scale(2.5); opacity: 0; filter: blur(2px); }}
                 }}
             </style>
-            <div style="position: absolute; width: 3px; height: 3px; 
+            <div style="position: absolute; width: 6px; height: 6px; 
                         background-color: #4F9D9D; border-radius: 50%; 
-                        box-shadow: 0 0 6px 1px #4F9D9D; z-index: 1000;"></div>
+                        box-shadow: 0 0 8px 1px #4F9D9D; z-index: 1000;"></div>
             
             <div style="position: absolute; width: 15px; height: 15px; 
-                        border: 0.5px solid #4F9D9D; border-radius: 50%; 
-                        animation: soft_micro_ripple 4s infinite ease-out; z-index: 999;"></div>
+                        border: 0.8px solid #4F9D9D; border-radius: 50%; 
+                        animation: artistic_ripple_6px 4s infinite ease-out; z-index: 999;"></div>
             
             <div style="position: absolute; width: 15px; height: 15px; 
-                        border: 0.3px solid #4F9D9D; border-radius: 50%; 
-                        animation: soft_micro_ripple 4s infinite 2s ease-out; z-index: 998;"></div>
+                        border: 0.4px solid #4F9D9D; border-radius: 50%; 
+                        animation: artistic_ripple_6px 4s infinite 2s ease-out; z-index: 998;"></div>
         </div>
         """
         folium.Marker(
             location=[row['Latitude'], row['Longitude']],
             icon=folium.DivIcon(
                 html=ripple_html,
-                icon_size=(30, 30),
-                icon_anchor=(15, 15)
+                icon_size=(40, 40),
+                icon_anchor=(20, 20)
             ),
             popup=f"原始錄音者: {row['Username']}"
         ).add_to(m)
 
-    # 5. 繪製 verified_data：微型黃色質感柔光 (不再隨縮放變形)
+    # 5. 繪製 verified_data：黃色 6px 質感柔光
     for _, row in verified_data.iterrows():
         yellow_glow_html = f"""
-        <div style="position: relative; width: 20px; height: 20px; display: flex; justify-content: center; align-items: center;">
-            <div style="width: 4px; height: 4px; background-color: #f1c40f; border-radius: 50%; 
-                        box-shadow: 0 0 8px 2px rgba(241, 196, 15, 0.6); z-index: 1000;"></div>
+        <div style="position: relative; width: 24px; height: 24px; display: flex; justify-content: center; align-items: center;">
+            <div style="width: 6px; height: 6px; background-color: #f1c40f; border-radius: 50%; 
+                        box-shadow: 0 0 10px 3px rgba(241, 196, 15, 0.5); z-index: 1000;"></div>
         </div>
         """
         folium.Marker(
             location=[row['Latitude'], row['Longitude']],
             icon=folium.DivIcon(
                 html=yellow_glow_html,
-                icon_size=(20, 20),
-                icon_anchor=(10, 10)
+                icon_size=(24, 24),
+                icon_anchor=(12, 12)
             ),
             popup=f"專家辨識: {row['Review Identity']}"
         ).add_to(m)
 
     # 6. 呈現地圖
-    st.markdown("<h2 style='text-align: center; color: #4F9D9D; font-weight: 200; letter-spacing: 2px;'>🌿 台灣蛙鳴環境聲景地圖</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center; color: #4F9D9D; font-weight: 200;'>🌿 台灣蛙鳴環境聲景地圖</h2>", unsafe_allow_html=True)
     folium_static(m, width=1100, height=600)
 
     # 側邊欄
     st.sidebar.markdown(f"### 🌙 聲景統計")
-    st.sidebar.metric("活躍波動 (#4F9D9D)", len(raw_data))
-    st.sidebar.metric("已驗證點位", len(verified_data))
+    st.sidebar.metric("原始波動 (#4F9D9D)", len(raw_data))
+    st.sidebar.metric("已驗證點位 (黃光)", len(verified_data))
 
 except Exception as e:
     st.error(f"地圖啟動失敗：{e}")

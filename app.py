@@ -7,11 +7,11 @@ from streamlit_folium import st_folium
 st.set_page_config(page_title="台灣蛙鳴監測地圖", layout="wide")
 st.title("🐸 台灣青蛙鳴聲監測：擬真水紋波動版")
 
-# 2. 定義「擬真藍色水波紋」CSS (模擬水滴擴散感)
+# 2. 定義藍色水波紋 CSS (加強發光感與層次)
 st.markdown("""
 <style>
 @keyframes ripple-wave {
-  0% { transform: scale(0.2); opacity: 1; }
+  0% { transform: scale(0.3); opacity: 1; }
   100% { transform: scale(4.5); opacity: 0; }
 }
 .ripple-container {
@@ -19,8 +19,8 @@ st.markdown("""
     display: flex; justify-content: center; align-items: center;
 }
 .ripple-core {
-    width: 8px; height: 8px; background: #00FFFF;
-    border-radius: 50%; box-shadow: 0 0 10px #00FFFF;
+    width: 10px; height: 10px; background: #00FFFF;
+    border-radius: 50%; box-shadow: 0 0 12px #00FFFF;
     position: absolute; z-index: 10;
 }
 .ripple-out-1 {
@@ -36,50 +36,50 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 3. 強力座標轉換函數
-def load_and_fix_data(name):
+# 3. 合併讀取函數
+def get_all_data():
     try:
-        df = pd.read_csv(name)
-        df.columns = df.columns.str.strip() # 去除標題空格
-        # 強制將 Latitude 和 Longitude 轉為純數字，並移除無法轉換的列
-        df['Latitude'] = pd.to_numeric(df['Latitude'], errors='coerce')
-        df['Longitude'] = pd.to_numeric(df['Longitude'], errors='coerce')
-        return df.dropna(subset=['Latitude', 'Longitude'])
+        # 同時讀取兩個檔案並合併
+        df1 = pd.read_csv("raw_data.csv")
+        df2 = pd.read_csv("verified_data.csv")
+        all_df = pd.concat([df1, df2], ignore_index=True).drop_duplicates()
+        
+        # 清理標題與格式
+        all_df.columns = all_df.columns.str.strip()
+        all_df['Latitude'] = pd.to_numeric(all_df['Latitude'], errors='coerce')
+        all_df['Longitude'] = pd.to_numeric(all_df['Longitude'], errors='coerce')
+        return all_df.dropna(subset=['Latitude', 'Longitude'])
     except:
         return None
 
-df_raw = load_and_fix_data("raw_data.csv")
-df_verified = load_and_fix_data("verified_data.csv")
+df = get_all_data()
 
-# 4. 建立地圖 (深色背景)
+# 4. 建立地圖 (深黑背景)
 m = folium.Map(location=[23.6, 121.0], zoom_start=7, tiles="CartoDB dark_matter")
 
-# 5. 繪製藍色擬真水波紋 (未辨識資料)
-if df_raw is not None:
-    for _, row in df_raw.iterrows():
-        # HTML 結構：一個發光核心 + 兩層延遲波紋
-        icon_html = '''
-        <div class="ripple-container">
-            <div class="ripple-core"></div>
-            <div class="ripple-out-1"></div>
-            <div class="ripple-out-2"></div>
-        </div>
-        '''
-        folium.Marker(
-            location=[row['Latitude'], row['Longitude']],
-            icon=folium.DivIcon(html=icon_html),
-            popup=f"👤 上傳者: {row['Username']}<br>📅 日期: {row['Create Date']}"
-        ).add_to(m)
+# 5. 繪製點位 (根據狀態自動分類)
+if df is not None:
+    for _, row in df.iterrows():
+        loc = [row['Latitude'], row['Longitude']]
+        # 判斷標準：如果 'Review Identity' 欄位是空的，或者是原本 raw 檔案裡的點位
+        is_verified = pd.notna(row.get('Review Identity')) and str(row.get('Review Identity')).strip() != ""
+        
+        if not is_verified:
+            # 🌊 顯示藍色擬真波紋
+            icon_html = '<div class="ripple-container"><div class="ripple-core"></div><div class="ripple-out-1"></div><div class="ripple-out-2"></div></div>'
+            folium.Marker(
+                location=loc,
+                icon=folium.DivIcon(html=icon_html),
+                popup=f"👤 待辨識點位<br>上傳者: {row.get('Username', '匿名')}"
+            ).add_to(m)
+        else:
+            # 🌟 顯示亮黃色燈號
+            folium.CircleMarker(
+                location=loc,
+                radius=8, color='#FFFFE0', fill=True,
+                fill_color='#FFFF00', fill_opacity=0.9, weight=2,
+                popup=f"🐸 已辨識: {row.get('Review Identity')}"
+            ).add_to(m)
 
-# 6. 繪製亮黃燈號 (已辨識資料)
-if df_verified is not None:
-    for _, row in df_verified.iterrows():
-        folium.CircleMarker(
-            location=[row['Latitude'], row['Longitude']],
-            radius=8, color='#FFFFE0', fill=True,
-            fill_color='#FFFF00', fill_opacity=0.9, weight=2,
-            popup=f"🐸 辨識結果: {row['Review Identity']}"
-        ).add_to(m)
-
-# 7. 呈現地圖
+# 6. 呈現地圖
 st_folium(m, width="100%", height=700)

@@ -7,7 +7,7 @@ from streamlit_folium import st_folium
 st.set_page_config(page_title="台灣蛙鳴監測地圖", layout="wide")
 st.title("🐸 台灣青蛙鳴聲監測：擬真水紋波動版")
 
-# 2. 定義擬真藍色水波紋 CSS (模擬您想要的擴散感)
+# 2. 定義擬真藍色水波紋 CSS (模擬 image_bf1e98.png 的質感)
 st.markdown("""
 <style>
 @keyframes ripple-wave {
@@ -36,33 +36,31 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 3. 讀取資料 (專注處理 raw_data.csv)
-def load_data():
+# 3. 超強力讀取函數 (自動處理 CSV 格式問題)
+def load_data_safe():
     try:
         df = pd.read_csv("raw_data.csv")
-        # 清理標題空格
+        # 清理標題空格並統一尋找經緯度欄位
         df.columns = df.columns.str.strip()
-        # 強制座標轉為數字，解決長小數點問題
-        df['Latitude'] = pd.to_numeric(df['Latitude'], errors='coerce')
-        df['Longitude'] = pd.to_numeric(df['Longitude'], errors='coerce')
-        return df.dropna(subset=['Latitude', 'Longitude'])
+        lat_col = [c for c in df.columns if 'lat' in c.lower()][0]
+        lon_col = [c for c in df.columns if 'lon' in c.lower()][0]
+        # 強制座標轉為數字，解決科學記號或文字干擾
+        df[lat_col] = pd.to_numeric(df[lat_col], errors='coerce')
+        df[lon_col] = pd.to_numeric(df[lon_col], errors='coerce')
+        return df.dropna(subset=[lat_col, lon_col]), lat_col, lon_col
     except Exception as e:
         st.error(f"讀取失敗: {e}")
-        return None
+        return None, None, None
 
-df = load_data()
+df, lat_c, lon_c = load_data_safe()
 
-# 4. 建立地圖 (深深藍底色)
+# 4. 建立地圖 (深黑底圖)
 m = folium.Map(location=[23.6, 121.0], zoom_start=7, tiles="CartoDB dark_matter")
 
-# 5. 畫出擬真藍色水波紋
+# 5. 繪製藍色水波紋
 if df is not None and not df.empty:
-    for index, row in df.iterrows():
-        # 確保經緯度是浮點數，解決 Folium 繪圖報錯
-        lat = float(row['Latitude'])
-        lon = float(row['Longitude'])
-        
-        # HTML 結構：核心點 + 兩層延遲波紋
+    for _, row in df.iterrows():
+        # HTML 結構：一個發光核心 + 兩層延遲波紋
         icon_html = """
         <div class="ripple-container">
             <div class="ripple-core"></div>
@@ -70,14 +68,13 @@ if df is not None and not df.empty:
             <div class="ripple-out-2"></div>
         </div>
         """
-        
         folium.Marker(
-            location=[lat, lon],
+            location=[float(row[lat_c]), float(row[lon_c])],
             icon=folium.DivIcon(html=icon_html),
             popup=f"上傳者: {row.get('Username', '匿名')}"
         ).add_to(m)
 else:
-    st.warning("⚠️ 檔案中沒有找到有效的座標資料點位。")
+    st.warning("⚠️ raw_data.csv 檔案讀取成功，但沒有包含可用的座標資料。")
 
 # 6. 呈現地圖
 st_folium(m, width="100%", height=700)

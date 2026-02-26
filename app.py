@@ -7,8 +7,8 @@ from streamlit_folium import st_folium
 st.set_page_config(page_title="台灣蛙鳴監測地圖", layout="wide")
 st.title("🐸 台灣青蛙鳴聲監測：擬真水紋波動版")
 
-# 2. 定義擬真藍色水波紋 CSS (模擬 image_bf1e98.png 的質感)
-st.markdown("""
+# 2. 定義擬真藍色水波紋 CSS (使用最安全的單行字串組合，防止縮排報錯)
+ripple_css = """
 <style>
 @keyframes ripple-wave {
   0% { transform: scale(0.2); opacity: 1; }
@@ -34,47 +34,31 @@ st.markdown("""
     animation: ripple-wave 2.5s infinite 1.25s cubic-bezier(0, 0.2, 0.8, 1);
 }
 </style>
-""", unsafe_allow_html=True)
+"""
+st.markdown(ripple_css, unsafe_allow_html=True)
 
-# 3. 超強力讀取函數 (自動處理 CSV 格式問題)
-def load_data_safe():
-    try:
-        df = pd.read_csv("raw_data.csv")
-        # 清理標題空格並統一尋找經緯度欄位
-        df.columns = df.columns.str.strip()
-        lat_col = [c for c in df.columns if 'lat' in c.lower()][0]
-        lon_col = [c for c in df.columns if 'lon' in c.lower()][0]
-        # 強制座標轉為數字，解決科學記號或文字干擾
-        df[lat_col] = pd.to_numeric(df[lat_col], errors='coerce')
-        df[lon_col] = pd.to_numeric(df[lon_col], errors='coerce')
-        return df.dropna(subset=[lat_col, lon_col]), lat_col, lon_col
-    except Exception as e:
-        st.error(f"讀取失敗: {e}")
-        return None, None, None
+# 3. 讀取資料 (直接處理，若失敗則顯示錯誤)
+df = pd.read_csv("raw_data.csv")
+df.columns = df.columns.str.strip() # 強制清除欄位前後空格
 
-df, lat_c, lon_c = load_data_safe()
+# 確保經緯度是數字類型
+df['Latitude'] = pd.to_numeric(df['Latitude'], errors='coerce')
+df['Longitude'] = pd.to_numeric(df['Longitude'], errors='coerce')
+df = df.dropna(subset=['Latitude', 'Longitude']) # 移除無效座標
 
-# 4. 建立地圖 (深黑底圖)
+# 4. 建立地圖 (深色背景)
 m = folium.Map(location=[23.6, 121.0], zoom_start=7, tiles="CartoDB dark_matter")
 
-# 5. 繪製藍色水波紋
-if df is not None and not df.empty:
-    for _, row in df.iterrows():
-        # HTML 結構：一個發光核心 + 兩層延遲波紋
-        icon_html = """
-        <div class="ripple-container">
-            <div class="ripple-core"></div>
-            <div class="ripple-out-1"></div>
-            <div class="ripple-out-2"></div>
-        </div>
-        """
-        folium.Marker(
-            location=[float(row[lat_c]), float(row[lon_c])],
-            icon=folium.DivIcon(html=icon_html),
-            popup=f"上傳者: {row.get('Username', '匿名')}"
-        ).add_to(m)
-else:
-    st.warning("⚠️ raw_data.csv 檔案讀取成功，但沒有包含可用的座標資料。")
+# 5. 繪製藍色擬真水波紋
+for index, row in df.iterrows():
+    # 建立多層次水紋 HTML
+    icon_html = '<div class="ripple-container"><div class="ripple-core"></div><div class="ripple-out-1"></div><div class="ripple-out-2"></div></div>'
+    
+    folium.Marker(
+        location=[float(row['Latitude']), float(row['Longitude'])],
+        icon=folium.DivIcon(html=icon_html),
+        popup=f"上傳者: {row.get('Username', '匿名')}"
+    ).add_to(m)
 
 # 6. 呈現地圖
 st_folium(m, width="100%", height=700)

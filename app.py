@@ -1,77 +1,61 @@
 import streamlit as st
 import pandas as pd
 import folium
-from streamlit_folium import st_folium
+from streamlit_folium import folium_static
 
-# 1. 網頁基本設定
-st.set_page_config(page_title="台灣蛙鳴監測地圖", layout="wide")
-st.title("🐸 台灣青蛙鳴聲監測：擬真水紋波動版")
+# 設定頁面標題
+st.set_page_config(page_title="台灣蛙鳴紀錄地圖", layout="wide")
+st.title("🐸 台灣蛙鳴空間資料互動地圖")
 
-# 2. 強制顯影藍色水波紋 CSS
-# 增加了 z-index 與強制寬高，確保在深色底圖上絕對可見
-st.markdown("""
-<style>
-@keyframes ripple-wave {
-  0% { transform: scale(0.3); opacity: 1; }
-  100% { transform: scale(4.5); opacity: 0; }
-}
-.ripple-container {
-    position: absolute;
-    width: 20px; height: 20px;
-    margin-left: -10px; margin-top: -10px;
-    display: flex; justify-content: center; align-items: center;
-    pointer-events: none;
-}
-.ripple-core {
-    width: 12px; height: 12px;
-    background: #00FFFF;
-    border-radius: 50%;
-    box-shadow: 0 0 15px #00FFFF;
-    z-index: 999;
-}
-.ripple-out {
-    position: absolute;
-    width: 50px; height: 50px;
-    border: 3px solid #00BFFF;
-    border-radius: 50%;
-    animation: ripple-wave 2s infinite cubic-bezier(0, 0.2, 0.8, 1);
-}
-</style>
-""", unsafe_allow_html=True)
-
-# 3. 超強力讀取函數
+# 1. 讀取資料 (加上簡單的錯誤處理)
+@st.cache_data
 def load_data():
-    try:
-        df = pd.read_csv("raw_data.csv")
-        df.columns = df.columns.str.strip()
-        # 自動偵測包含 lat/lon 的欄位
-        lat_col = [c for c in df.columns if 'lat' in c.lower()][0]
-        lon_col = [c for c in df.columns if 'lon' in c.lower()][0]
-        # 強制轉型
-        df[lat_col] = pd.to_numeric(df[lat_col], errors='coerce')
-        df[lon_col] = pd.to_numeric(df[lon_col], errors='coerce')
-        return df.dropna(subset=[lat_col, lon_col]), lat_col, lon_col
-    except:
-        return None, None, None
+    raw_df = pd.read_csv('data/raw_data.csv')
+    verified_df = pd.read_csv('data/verified_data.csv')
+    return raw_df, verified_df
 
-df, lat_c, lon_c = load_data()
+try:
+    df_raw, df_verified = load_data()
+except Exception as e:
+    st.error(f"資料讀取失敗，請檢查檔案路徑。錯誤: {e}")
+    st.stop()
 
-# 4. 建立地圖
-m = folium.Map(location=[23.6, 121.0], zoom_start=7, tiles="CartoDB dark_matter")
+# 2. 建立地圖底圖 (中心點設在台灣)
+m = folium.Map(location=[23.6, 121.0], zoom_start=7, tiles="cartodbpositron")
 
-# 5. 繪製強制顯影水波紋
-if df is not None:
-    for _, row in df.iterrows():
-        # HTML 結構加上了強大的發光核心
-        icon_html = '<div class="ripple-container"><div class="ripple-core"></div><div class="ripple-out"></div></div>'
-        folium.Marker(
-            location=[float(row[lat_c]), float(row[lon_c])],
-            icon=folium.DivIcon(html=icon_html, icon_size=(20, 20), icon_anchor=(10, 10)),
-            popup=f"上傳者: {row.get('Username', '匿名')}"
-        ).add_to(m)
+# 3. 繪製 raw_data (藍色水波紋感)
+for _, row in df_raw.iterrows():
+    folium.CircleMarker(
+        location=[row['Latitude'], row['Longitude']],
+        radius=8,
+        popup=f"ID: {row['ID']}<br>錄音者: {row['Username']}",
+        color="#3498db",       # 藍色邊框
+        fill=True,
+        fill_color="#85c1e9",  # 淺藍填充
+        fill_opacity=0.6,
+        weight=2               # 邊框厚度增加，模擬波紋邊緣
+    ).add_to(m)
 
-# 6. 呈現
-st_folium(m, width="100%", height=700)
+# 4. 繪製 verified_data (黃色半透明燈光感)
+for _, row in df_verified.iterrows():
+    folium.CircleMarker(
+        location=[row['Latitude'], row['Longitude']],
+        radius=10,             # 稍微大一點點，像光暈
+        popup=f"專家辨識: {row['Review Identity']}<br>審核者: {row['Reviewer']}",
+        color="#f1c40f",       # 金黃色邊框
+        fill=True,
+        fill_color="#f4d03f",  # 燈光黃
+        fill_opacity=0.4,      # 較低透明度營造燈光感
+        weight=0               # 無邊框，更像光暈
+    ).add_to(m)
 
-if df is not None:
-    st.success(f"✅ 已成功渲染 {len(df)} 個藍色水波紋點位")
+# 5. 在 Streamlit 顯示地圖
+folium_static(m, width=1000, height=600)
+
+# 側邊欄資訊
+st.sidebar.info(f"📅 資料最後更新日期: {df_raw['Create Date'].max()}")
+st.sidebar.markdown("""
+### 圖例說明
+- 🔵 **藍色點位**：民眾原始錄音紀錄
+- 🟡 **黃色光暈**：專家已辨識紀錄
+""")

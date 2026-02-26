@@ -5,9 +5,9 @@ from streamlit_folium import st_folium
 
 # 1. 網頁基本設定
 st.set_page_config(page_title="台灣蛙鳴監測地圖", layout="wide")
-st.title("🐸 台灣青蛙鳴聲監測：擬真水紋波動版")
+st.title("🐸 台灣青蛙鳴聲監測：純藍水紋波浪版")
 
-# 2. 定義擬真藍色水波紋 CSS (使用最安全的單行字串組合，防止縮排報錯)
+# 2. 定義擬真藍色水波紋 CSS
 ripple_css = """
 <style>
 @keyframes ripple-wave {
@@ -37,28 +37,40 @@ ripple_css = """
 """
 st.markdown(ripple_css, unsafe_allow_html=True)
 
-# 3. 讀取資料 (直接處理，若失敗則顯示錯誤)
-df = pd.read_csv("raw_data.csv")
-df.columns = df.columns.str.strip() # 強制清除欄位前後空格
-
-# 確保經緯度是數字類型
-df['Latitude'] = pd.to_numeric(df['Latitude'], errors='coerce')
-df['Longitude'] = pd.to_numeric(df['Longitude'], errors='coerce')
-df = df.dropna(subset=['Latitude', 'Longitude']) # 移除無效座標
-
-# 4. 建立地圖 (深色背景)
-m = folium.Map(location=[23.6, 121.0], zoom_start=7, tiles="CartoDB dark_matter")
-
-# 5. 繪製藍色擬真水波紋
-for index, row in df.iterrows():
-    # 建立多層次水紋 HTML
-    icon_html = '<div class="ripple-container"><div class="ripple-core"></div><div class="ripple-out-1"></div><div class="ripple-out-2"></div></div>'
+# 3. 強力讀取資料
+try:
+    df = pd.read_csv("raw_data.csv")
+    # 強制去除所有欄位名稱的前後空格
+    df.columns = df.columns.str.strip()
     
-    folium.Marker(
-        location=[float(row['Latitude']), float(row['Longitude'])],
-        icon=folium.DivIcon(html=icon_html),
-        popup=f"上傳者: {row.get('Username', '匿名')}"
-    ).add_to(m)
+    # 【自動偵測欄位】不論大小寫或空格，只要包含 'lat' 或 'lon' 就抓
+    lat_col = [c for c in df.columns if 'lat' in c.lower()][0]
+    lon_col = [c for c in df.columns if 'lon' in c.lower()][0]
+    
+    # 強制轉為數字型態
+    df[lat_col] = pd.to_numeric(df[lat_col], errors='coerce')
+    df[lon_col] = pd.to_numeric(df[lon_col], errors='coerce')
+    
+    # 移除真的無法轉換的空值
+    df_clean = df.dropna(subset=[lat_col, lon_col])
+    
+    # 4. 建立地圖
+    m = folium.Map(location=[23.6, 121.0], zoom_start=7, tiles="CartoDB dark_matter")
 
-# 6. 呈現地圖
-st_folium(m, width="100%", height=700)
+    # 5. 繪製藍色水波紋
+    for _, row in df_clean.iterrows():
+        icon_html = '<div class="ripple-container"><div class="ripple-core"></div><div class="ripple-out-1"></div><div class="ripple-out-2"></div></div>'
+        folium.Marker(
+            location=[float(row[lat_col]), float(row[lon_col])],
+            icon=folium.DivIcon(html=icon_html),
+            popup=f"上傳者: {row.get('Username', '匿名')}"
+        ).add_to(m)
+
+    st_folium(m, width="100%", height=700)
+    
+    # 底部顯示讀取到的筆數，幫助確認資料有沒有進來
+    st.write(f"✅ 成功在地圖上標記 {len(df_clean)} 個待辨識點位")
+
+except Exception as e:
+    st.error(f"❌ 發生錯誤：{e}")
+    st.write("請檢查 raw_data.csv 檔案內容。")

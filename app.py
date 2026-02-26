@@ -4,7 +4,7 @@ import folium
 from streamlit_folium import folium_static
 
 # 1. 頁面基本設定
-st.set_page_config(page_title="台灣蛙鳴聲景地圖", layout="wide")
+st.set_page_config(page_title="台灣蛙鳴環境聲景地圖", layout="wide")
 
 # 2. 核心資料讀取函數
 @st.cache_data
@@ -38,42 +38,43 @@ try:
         tiles="cartodbdarkmatter"
     )
 
-    # 4. 繪製 raw_data：#4F9D9D 藝術化淡化漣漪
+    # 4. 繪製 raw_data：使用 #C4E1FF 的極致淡化漣漪
     for _, row in raw_data.iterrows():
-        # 優化後的淡化動畫：增加末端模糊與快速透明化
+        # 優化後的淡化動畫：使用淡藍色 #C4E1FF，並加強擴散後的消散感
         ripple_html = f"""
-        <div style="position: relative; width: 40px; height: 40px; display: flex; justify-content: center; align-items: center;">
+        <div style="position: relative; width: 50px; height: 50px; display: flex; justify-content: center; align-items: center;">
             <style>
-                @keyframes fading_ripple {{
-                    0% {{ transform: scale(0.8); opacity: 0; }}
-                    20% {{ opacity: 0.6; }} /* 波紋出現 */
-                    100% {{ transform: scale(3.5); opacity: 0; filter: blur(4px); }} /* 擴散並徹底淡化 */
+                @keyframes water_fading {{
+                    0% {{ transform: scale(0.6); opacity: 0; }}
+                    15% {{ opacity: 0.7; }} /* 快速出現 */
+                    50% {{ opacity: 0.3; }} /* 中段開始大幅淡化 */
+                    100% {{ transform: scale(4.5); opacity: 0; filter: blur(5px); }} /* 最終完全消散並模糊 */
                 }}
             </style>
             <div style="position: absolute; width: 6px; height: 6px; 
-                        background-color: #4F9D9D; border-radius: 50%; 
-                        box-shadow: 0 0 6px 1px #4F9D9D; z-index: 1000;"></div>
+                        background-color: #C4E1FF; border-radius: 50%; 
+                        box-shadow: 0 0 8px 2px rgba(196, 225, 255, 0.8); z-index: 1000;"></div>
             
             <div style="position: absolute; width: 12px; height: 12px; 
-                        border: 0.8px solid #4F9D9D; border-radius: 50%; 
-                        animation: fading_ripple 4s infinite ease-out; z-index: 999;"></div>
+                        border: 0.6px solid #C4E1FF; border-radius: 50%; 
+                        animation: water_fading 4.5s infinite ease-out; z-index: 999;"></div>
             
             <div style="position: absolute; width: 12px; height: 12px; 
-                        border: 0.4px solid #4F9D9D; border-radius: 50%; 
-                        animation: fading_ripple 4s infinite 2s ease-out; z-index: 998;"></div>
+                        border: 0.3px solid #C4E1FF; border-radius: 50%; 
+                        animation: water_fading 4.5s infinite 2.25s ease-out; z-index: 998;"></div>
         </div>
         """
         folium.Marker(
             location=[row['Latitude'], row['Longitude']],
             icon=folium.DivIcon(
                 html=ripple_html,
-                icon_size=(40, 40),
-                icon_anchor=(20, 20)
+                icon_size=(50, 50),
+                icon_anchor=(25, 25)
             ),
             popup=f"原始錄音者: {row['Username']}"
         ).add_to(m)
 
-    # 5. 繪製 verified_data：黃色 6px 質感柔光
+    # 5. 繪製 verified_data：黃色 6px 柔光點
     for _, row in verified_data.iterrows():
         yellow_glow_html = f"""
         <div style="position: relative; width: 24px; height: 24px; display: flex; justify-content: center; align-items: center;">
@@ -91,9 +92,14 @@ try:
             popup=f"專家辨識: {row['Review Identity']}"
         ).add_to(m)
 
-    # 6. 呈現地圖
-    st.markdown("<h2 style='text-align: center; color: #4F9D9D; font-weight: 200;'>🌿 台灣蛙鳴環境聲景地圖</h2>", unsafe_allow_html=True)
+    # 6. 呈現地圖與標題
+    st.markdown("<h2 style='text-align: center; color: #C4E1FF; font-weight: 200; letter-spacing: 1px;'>🌿 台灣蛙鳴環境聲景地圖</h2>", unsafe_allow_html=True)
     folium_static(m, width=1100, height=600)
+
+    # 側邊欄統計
+    st.sidebar.markdown(f"### 📍 當前觀測統計")
+    st.sidebar.metric("原始波動 (#C4E1FF)", len(raw_data))
+    st.sidebar.metric("確定紀錄 (黃光)", len(verified_data))
 
 except Exception as e:
     st.error(f"地圖啟動失敗：{e}")

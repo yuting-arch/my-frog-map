@@ -5,9 +5,9 @@ from streamlit_folium import st_folium
 
 # 1. 網頁基本設定
 st.set_page_config(page_title="台灣蛙鳴監測地圖", layout="wide")
-st.title("🐸 台灣青蛙鳴聲監測：強制分色波動版")
+st.title("🐸 台灣青蛙鳴聲監測：擬真水紋波動版")
 
-# 2. 定義「擬真藍色水波紋」CSS (模擬水滴擴散感)
+# 2. 定義藍色水波紋 CSS
 st.markdown("""
 <style>
 @keyframes ripple-wave {
@@ -20,7 +20,7 @@ st.markdown("""
 }
 .ripple-core {
     width: 10px; height: 10px; background: #00FFFF;
-    border-radius: 50%; box-shadow: 0 0 10px #00FFFF;
+    border-radius: 50%; box-shadow: 0 0 12px #00FFFF;
     position: absolute; z-index: 10;
 }
 .ripple-out-1 {
@@ -36,50 +36,46 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 3. 強力座標轉換函數
-def force_load_data(file_name):
+# 3. 強力座標修復函數
+def force_fix_data(file_name):
     try:
         df = pd.read_csv(file_name)
-        df.columns = df.columns.str.strip() # 去除標題空格
-        # 強制將 Latitude 和 Longitude 轉為純數字，處理潛在的格式錯誤
+        df.columns = df.columns.str.strip()
+        # 強制轉換並排除非數字內容
         df['Latitude'] = pd.to_numeric(df['Latitude'], errors='coerce')
         df['Longitude'] = pd.to_numeric(df['Longitude'], errors='coerce')
         return df.dropna(subset=['Latitude', 'Longitude'])
     except:
         return None
 
-# 分別讀取兩份原始檔案
-df_blue = force_load_data("raw_data.csv")
-df_yellow = force_load_data("verified_data.csv")
+df_blue = force_fix_data("raw_data.csv")
+df_yellow = force_fix_data("verified_data.csv")
 
-# 4. 建立地圖 (深黑背景)
+# 4. 建立地圖
 m = folium.Map(location=[23.6, 121.0], zoom_start=7, tiles="CartoDB dark_matter")
 
-# 5. 【強制】畫出藍色水波紋 (只要在 raw_data.csv 裡面的全部畫藍色)
+# 5. 強制畫出藍色水波紋 (raw_data.csv)
 if df_blue is not None:
     for _, row in df_blue.iterrows():
-        icon_html = '''
-        <div class="ripple-container">
-            <div class="ripple-core"></div>
-            <div class="ripple-out-1"></div>
-            <div class="ripple-out-2"></div>
-        </div>
-        '''
+        # 這裡強制轉為 float 確保 folium 讀得懂
+        lat, lon = float(row['Latitude']), float(row['Longitude'])
+        icon_html = '<div class="ripple-container"><div class="ripple-core"></div><div class="ripple-out-1"></div><div class="ripple-out-2"></div></div>'
         folium.Marker(
-            location=[row['Latitude'], row['Longitude']],
+            location=[lat, lon],
             icon=folium.DivIcon(html=icon_html),
-            popup=f"🟦 原始點位<br>上傳者: {row.get('Username', '匿名')}"
+            popup=f"上傳者: {row.get('Username', '未知')}"
         ).add_to(m)
 
-# 6. 【強制】畫出黃色燈號 (只要在 verified_data.csv 裡面的全部畫黃色)
+# 6. 強制畫出黃色燈號 (verified_data.csv)
 if df_yellow is not None:
     for _, row in df_yellow.iterrows():
+        lat, lon = float(row['Latitude']), float(row['Longitude'])
         folium.CircleMarker(
-            location=[row['Latitude'], row['Longitude']],
+            location=[lat, lon],
             radius=8, color='#FFFFE0', fill=True,
             fill_color='#FFFF00', fill_opacity=0.9, weight=2,
-            popup=f"🟨 辨識結果: {row.get('Review Identity', '已審核')}"
+            popup=f"結果: {row.get('Review Identity', '已辨識')}"
         ).add_to(m)
 
-# 7. 呈現地圖
+# 7. 呈現
 st_folium(m, width="100%", height=700)

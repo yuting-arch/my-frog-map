@@ -4,9 +4,9 @@ import folium
 from streamlit_folium import folium_static
 
 # 1. 頁面基本設定
-st.set_page_config(page_title="台灣蛙鳴動態地圖", layout="wide")
+st.set_page_config(page_title="台灣蛙鳴聲景地圖", layout="wide")
 
-# 2. 核心讀取函數 (自動處理編碼與數值格式)
+# 2. 核心讀取函數 (自動處理編碼)
 @st.cache_data
 def load_data_final():
     def try_read(file_name):
@@ -28,69 +28,74 @@ def load_data_final():
     return df_raw.dropna(subset=['Latitude', 'Longitude']), \
            df_verified.dropna(subset=['Latitude', 'Longitude'])
 
-# 主程式邏輯
 try:
     raw_data, verified_data = load_data_final()
 
-    # 3. 建立深藍色地圖
+    # 3. 建立深藍色質感地圖
     m = folium.Map(
         location=[23.6, 121.0], 
         zoom_start=7, 
         tiles="cartodbdarkmatter"
     )
 
-    # 4. 繪製 raw_data：極細水波紋動畫
+    # 4. 繪製 raw_data：#4F9D9D 藝術柔和漣漪
     for _, row in raw_data.iterrows():
-        # 定義多重極細波紋動畫
+        # 藝術化波紋：使用指定色號 #4F9D9D，並加入模糊與淡出效果
         ripple_html = f"""
-        <div style="position: relative; width: 40px; height: 40px;">
+        <div style="position: relative; width: 60px; height: 60px;">
             <style>
-                @keyframes fine_ripple {{
-                    0% {{ transform: scale(0.2); opacity: 0.9; border-width: 0.8px; }}
-                    100% {{ transform: scale(4.5); opacity: 0; border-width: 0.1px; }}
+                @keyframes water_art {{
+                    0% {{ transform: scale(0.3); opacity: 0.9; }}
+                    100% {{ transform: scale(4); opacity: 0; filter: blur(3px); }}
                 }}
             </style>
-            <div style="position: absolute; top: 18.5px; left: 18.5px; width: 3px; height: 3px; 
-                        background-color: #00d2ff; border-radius: 50%; box-shadow: 0 0 5px #00d2ff;"></div>
-            <div style="position: absolute; top: 0; left: 0; width: 40px; height: 40px; 
-                        border: 0.5px solid #00d2ff; border-radius: 50%; 
-                        animation: fine_ripple 3s infinite cubic-bezier(0.2, 0.5, 0.4, 0.9);"></div>
-            <div style="position: absolute; top: 0; left: 0; width: 40px; height: 40px; 
-                        border: 0.5px solid #00d2ff; border-radius: 50%; 
-                        animation: fine_ripple 3s infinite 1.5s cubic-bezier(0.2, 0.5, 0.4, 0.9);"></div>
+            <div style="position: absolute; top: 27px; left: 27px; width: 6px; height: 6px; 
+                        background-color: #4F9D9D; border-radius: 50%; 
+                        box-shadow: 0 0 10px #4F9D9D; z-index: 1000;"></div>
+            
+            <div style="position: absolute; top: 0; left: 0; width: 60px; height: 60px; 
+                        border: 0.8px solid #4F9D9D; border-radius: 50%; 
+                        animation: water_art 4s infinite ease-out; z-index: 999;"></div>
+            
+            <div style="position: absolute; top: 0; left: 0; width: 60px; height: 60px; 
+                        border: 0.5px solid #4F9D9D; border-radius: 50%; 
+                        animation: water_art 4s infinite 2s ease-out; z-index: 998;"></div>
         </div>
         """
         folium.Marker(
             location=[row['Latitude'], row['Longitude']],
             icon=folium.DivIcon(
                 html=ripple_html,
-                icon_size=(40, 40),
-                icon_anchor=(20, 20)
+                icon_size=(60, 60),
+                icon_anchor=(30, 30)
             ),
-            popup=f"原始錄音: {row['Username']}"
+            popup=f"原始錄音者: {row['Username']}"
         ).add_to(m)
 
-    # 5. 繪製 verified_data：黃色半透明光點
+    # 5. 繪製 verified_data：黃色柔光點
     for _, row in verified_data.iterrows():
         folium.CircleMarker(
             location=[row['Latitude'], row['Longitude']],
             radius=10,
-            popup=f"專家辨識: {row['Review Identity']}",
+            popup=f"鑑定物種: {row['Review Identity']}",
             color="#f1c40f",
             fill=True,
             fill_color="#f1c40f",
-            fill_opacity=0.4,
+            fill_opacity=0.3,
             weight=0
         ).add_to(m)
 
-    # 6. 在網頁上呈現
-    st.markdown("<h2 style='text-align: center; color: white;'>🌌 台灣蛙鳴空間資料互動地圖</h2>", unsafe_allow_html=True)
+    # 6. 呈現地圖
+    st.markdown("<h2 style='text-align: center; color: #4F9D9D; font-weight: 300;'>🌿 台灣蛙鳴環境聲景地圖</h2>", unsafe_allow_html=True)
     folium_static(m, width=1100, height=600)
 
-    # 側邊欄資訊
-    st.sidebar.title("📊 資料統計")
-    st.sidebar.metric("原始紀錄 (藍色細波紋)", len(raw_data))
-    st.sidebar.metric("專家辨識 (黃色光點)", len(verified_data))
+    # 側邊欄統計
+    st.sidebar.markdown(f"### 📍 當前觀測統計")
+    st.sidebar.metric("原始波動 (#4F9D9D)", len(raw_data))
+    st.sidebar.metric("確定紀錄 (黃光)", len(verified_data))
+    
+    st.sidebar.markdown("---")
+    st.sidebar.write("這是一項致力於紀錄台灣自然聲音的公民科學計畫。")
 
 except Exception as e:
-    st.error(f"地圖啟動失敗，請檢查原始資料內容。錯誤訊息: {e}")
+    st.error(f"地圖加載異常: {e}")

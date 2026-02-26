@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import folium
 from streamlit_folium import folium_static
-import io
 
 # 頁面基本設定
 st.set_page_config(page_title="台灣蛙鳴空間資料地圖", layout="wide")
@@ -10,36 +9,33 @@ st.set_page_config(page_title="台灣蛙鳴空間資料地圖", layout="wide")
 # 自定義標題
 st.markdown("<h1 style='text-align: center; color: #2e7d32;'>🐸 台灣蛙鳴空間資料互動地圖</h1>", unsafe_allow_html=True)
 
-# 1. 強力讀取函數：解決所有編碼問題
+# 1. 核心讀取函數：使用萬用編碼相容模式
 @st.cache_data
-def load_data_safe(file_path):
-    encodings = ['utf-8', 'big5', 'cp950', 'utf-8-sig']
-    for enc in encodings:
-        try:
-            df = pd.read_csv(file_path, encoding=enc)
-            return df
-        except Exception:
-            continue
+def load_data_final():
+    def try_read(file_name):
+        # 嘗試清單：UTF-8 -> Big5 -> CP950
+        for enc in ['utf-8', 'big5', 'cp950', 'utf-8-sig']:
+            try:
+                return pd.read_csv(file_name, encoding=enc)
+            except:
+                continue
+        # 如果都失敗，使用最暴力的方式讀取，無視錯誤字元
+        return pd.read_csv(file_name, encoding='latin1')
+
+    df_raw = try_read('raw_data.csv')
+    df_verified = try_read('verified_data.csv')
     
-    # 如果上面都失敗，使用強制讀取模式 (跳過無法解析的字元)
-    return pd.read_csv(file_path, encoding='utf-8', errors='ignore')
+    # 數值轉換與清洗 (確保經緯度正確)
+    for df in [df_raw, df_verified]:
+        df['Latitude'] = pd.to_numeric(df['Latitude'], errors='coerce')
+        df['Longitude'] = pd.to_numeric(df['Longitude'], errors='coerce')
+        df['Create Date'] = pd.to_datetime(df['Create Date'], errors='coerce')
+    
+    return df_raw.dropna(subset=['Latitude', 'Longitude']), \
+           df_verified.dropna(subset=['Latitude', 'Longitude'])
 
 try:
-    # 讀取兩筆資料
-    df_raw = load_data_safe('raw_data.csv')
-    df_verified = load_data_safe('verified_data.csv')
-    
-    # 統一日期格式，若轉換失敗則不強制
-    df_raw['Create Date'] = pd.to_datetime(df_raw['Create Date'], errors='coerce')
-    df_verified['Create Date'] = pd.to_datetime(df_verified['Create Date'], errors='coerce')
-    
-    # 確保經緯度是數字類型，避免繪圖錯誤
-    df_raw[['Latitude', 'Longitude']] = df_raw[['Latitude', 'Longitude']].apply(pd.to_numeric, errors='coerce')
-    df_verified[['Latitude', 'Longitude']] = df_verified[['Latitude', 'Longitude']].apply(pd.to_numeric, errors='coerce')
-    
-    # 移除經緯度有缺失的資料列
-    df_raw = df_raw.dropna(subset=['Latitude', 'Longitude'])
-    df_verified = df_verified.dropna(subset=['Latitude', 'Longitude'])
+    raw_data, verified_data = load_data_final()
 
     # 2. 建立地圖
     m = folium.Map(
@@ -49,7 +45,7 @@ try:
     )
 
     # 3. 繪製 raw_data：藍色水波紋
-    for _, row in df_raw.iterrows():
+    for _, row in raw_data.iterrows():
         folium.CircleMarker(
             location=[row['Latitude'], row['Longitude']],
             radius=6,
@@ -62,7 +58,7 @@ try:
         ).add_to(m)
 
     # 4. 繪製 verified_data：黃色燈光
-    for _, row in df_verified.iterrows():
+    for _, row in verified_data.iterrows():
         folium.CircleMarker(
             location=[row['Latitude'], row['Longitude']],
             radius=10,
@@ -79,14 +75,14 @@ try:
 
     # 側邊欄統計
     st.sidebar.title("📊 資料統計")
-    st.sidebar.metric("原始紀錄", len(df_raw))
-    st.sidebar.metric("專家辨識", len(df_verified))
+    st.sidebar.metric("原始紀錄", len(raw_data))
+    st.sidebar.metric("專家辨識", len(verified_data))
     
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("### 💡 圖例說明")
-    st.sidebar.write("🔵 藍色：原始紀錄")
-    st.sidebar.write("🟡 黃色：專家已審核")
+    if not raw_data.empty:
+        latest_date = raw_data['Create Date'].max()
+        if pd.notnull(latest_date):
+            st.sidebar.info(f"📅 最後更新：{latest_date.strftime('%Y-%m-%d')}")
 
 except Exception as e:
-    st.error(f"抱歉，程式遇到了一個我沒料到的錯誤：{e}")
-    st.info("請檢查 CSV 檔案內的欄位標頭 (Header) 是否包含：ID, Username, Latitude, Longitude")
+    st.error(f"偵測到報錯：{e}")
+    st.info("請確認 CSV 檔案中的標頭欄位名稱是否正確。")

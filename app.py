@@ -3,62 +3,66 @@ import pandas as pd
 import folium
 from streamlit_folium import st_folium
 
-# 1. 網頁基本設定
-st.set_page_config(page_title="台灣青蛙鳴聲監測地圖", layout="wide")
-st.title("🐸 全台青蛙鳴聲收集紀錄")
-st.markdown("本地圖呈現民眾上傳的原始資料（紅色漣漪）與專家辨識後的紀錄（黃色燈號）。")
+st.set_page_config(page_title="全台青蛙鳴聲監測地圖", layout="wide")
+st.title("🐸 青蛙鳴聲監測計畫：即時回報與專家審核地圖")
 
-# 2. 讀取 CSV 資料函數
-@st.cache_data
-def load_frog_data():
+# 定義讀取函數，增加處理欄位名稱的邏輯
+def load_data(file_name):
     try:
-        # 讀取剛才上傳的 data.csv
-        df = pd.read_csv("data.csv")
+        df = pd.read_csv(file_name)
+        # 統一將欄位轉為小寫方便後續處理，但保留原始資料顯示
         return df
-    except Exception as e:
-        st.error(f"讀取資料失敗，請確認資料夾中是否有 data.csv 檔案。錯誤訊息: {e}")
+    except:
         return None
 
-# 執行讀取
-df = load_frog_data()
+# 讀取你的兩份報表
+df_raw = load_data("raw_data.csv")      # 未辨識
+df_verified = load_data("verified_data.csv")  # 已辨識
 
-if df is not None:
-    # 3. 建立台灣中心地圖
-    # [Image of interactive map interface with color coded markers]
-    m = folium.Map(location=[23.6, 121.0], zoom_start=7, tiles="CartoDB positron")
+# 建立地圖中心點 (台灣)
+m = folium.Map(location=[23.6, 121.0], zoom_start=7, tiles="CartoDB positron")
 
-    # 4. 處理每一筆資料點位
-    for index, row in df.iterrows():
-        # 取得座標
-        location = [row['lat'], row['lon']]
+# 1. 處理「未辨識」點位 (紅色漣漪)
+if df_raw is not None:
+    for _, row in df_raw.iterrows():
+        # 注意：這裡使用你提供的欄位名稱 Latitude, Longitude
+        loc = [row['Latitude'], row['Longitude']]
+        popup_text = f"👤 上傳者: {row['Username']}<br>📅 日期: {row['Create Date']}<br>⚠️ 狀態: 等待辨識中"
         
-        # 判斷狀態：0 為新上傳(漣漪)，1 為專家已辨識(黃燈)
-        if row['status'] == 0:
-            # 製作紅色漣漪感 (外圈)
-            folium.Circle(
-                location=location,
-                radius=800,
-                color='red',
-                weight=1,
-                fill=False
-            ).add_to(m)
-            # 內點
-            folium.CircleMarker(
-                location=location,
-                radius=8,
-                color='red',
-                fill=True,
-                fill_opacity=0.7,
-                popup="新收集：等待專業辨識"
-            ).add_to(m)
-            
-        else:
-            # 專家辨識後轉為亮黃色燈號
-            folium.Marker(
-                location=location,
-                icon=folium.Icon(color='orange', icon='star'),
-                popup="✅ 專家已確認蛙種"
-            ).add_to(m)
+        folium.Circle(loc, radius=1000, color='red', weight=1, fill=False).add_to(m)
+        folium.CircleMarker(
+            loc, radius=6, color='red', fill=True, fill_opacity=0.7,
+            popup=folium.Popup(popup_text, max_width=300)
+        ).add_to(m)
 
-    # 5. 將地圖渲染到網頁上
-    st_folium(m, width="100
+# 2. 處理「已辨識」點位 (黃色亮星)
+if df_verified is not None:
+    for _, row in df_verified.iterrows():
+        loc = [row['Latitude'], row['Longitude']]
+        # 這裡多加入了 Reviewer 資訊
+        popup_text = (
+            f"👤 上傳者: {row['Username']}<br>"
+            f"🐸 辨識結果: <b>{row['Review Identity']}</b><br>"
+            f"👨‍🔬 審核專家: {row['Reviewer']}<br>"
+            f"📅 審核日期: {row['Review Date']}"
+        )
+        
+        folium.Marker(
+            loc, 
+            icon=folium.Icon(color='orange', icon='star'),
+            popup=folium.Popup(popup_text, max_width=300)
+        ).add_to(m)
+
+# 顯示地圖
+st_folium(m, width="100%", height=700)
+
+# 數據看板
+st.divider()
+col1, col2, col3 = st.columns(3)
+with col1:
+    st.metric("本月新收集", len(df_raw) if df_raw is not None else 0)
+with col2:
+    st.metric("專家已辨識", len(df_verified) if df_verified is not None else 0)
+with col3:
+    total = (len(df_raw) if df_raw is not None else 0) + (len(df_verified) if df_verified is not None else 0)
+    st.metric("總點位數", total)

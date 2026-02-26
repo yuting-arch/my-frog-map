@@ -6,24 +6,42 @@ from streamlit_folium import folium_static
 # 1. 頁面基本設定
 st.set_page_config(page_title="台灣蛙鳴動態地圖", layout="wide")
 
-# 2. 定義 CSS 漣漪動畫特效 (讓藍色點位有石頭落水的動態感)
+# 2. 強化版 CSS 漣漪動畫 (確保 z-index 在最前方)
 ripple_css = """
 <style>
 @keyframes ripple {
-  0% { transform: scale(0.5); opacity: 1; }
-  100% { transform: scale(2.5); opacity: 0; }
+  0% { transform: scale(0.4); opacity: 0.9; }
+  100% { transform: scale(2.8); opacity: 0; }
 }
-.ripple-icon {
-  background: rgba(52, 152, 219, 0.6);
+.ripple-container {
+  position: relative;
+  width: 20px;
+  height: 20px;
+}
+.ripple-core {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: #3498db;
   border-radius: 50%;
-  box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.4);
+  top: 6px;
+  left: 6px;
+  z-index: 999;
+}
+.ripple-wave {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border: 3px solid #3498db;
+  border-radius: 50%;
   animation: ripple 2s infinite;
+  z-index: 998;
 }
 </style>
 """
 st.markdown(ripple_css, unsafe_allow_html=True)
 
-# 3. 核心資料讀取函數
+# 3. 穩定讀取資料函數
 @st.cache_data
 def load_data_final():
     def try_read(file_name):
@@ -40,41 +58,40 @@ def load_data_final():
     for df in [df_raw, df_verified]:
         df['Latitude'] = pd.to_numeric(df['Latitude'], errors='coerce')
         df['Longitude'] = pd.to_numeric(df['Longitude'], errors='coerce')
-        df['Create Date'] = pd.to_datetime(df['Create Date'], errors='coerce')
     
     return df_raw.dropna(subset=['Latitude', 'Longitude']), \
            df_verified.dropna(subset=['Latitude', 'Longitude'])
 
-# 執行主程式
 try:
     raw_data, verified_data = load_data_final()
 
     # 4. 建立地圖
     m = folium.Map(location=[23.6, 121.0], zoom_start=7, tiles="cartodbpositron")
 
-    # 5. 繪製 raw_data：動態漣漪動畫 (DivIcon)
+    # 5. 繪製 raw_data：藍色動態漣漪
+    # 我們改用 Marker 並簡化 HTML 結構確保渲染
     for _, row in raw_data.iterrows():
-        # 使用 DivIcon 注入 CSS 動畫類別
-        folium.map.Marker(
+        icon_html = '<div class="ripple-container"><div class="ripple-core"></div><div class="ripple-wave"></div></div>'
+        folium.Marker(
             location=[row['Latitude'], row['Longitude']],
             icon=folium.DivIcon(
-                html=f'<div class="ripple-icon" style="width: 15px; height: 15px;"></div>',
-                icon_size=(15, 15),
-                icon_anchor=(7.5, 7.5)
+                html=icon_html,
+                icon_size=(20, 20),
+                icon_anchor=(10, 10)
             ),
-            popup=f"原始紀錄 ID: {row['ID']}"
+            popup=f"原始紀錄: {row['Username']}"
         ).add_to(m)
 
-    # 6. 繪製 verified_data：黃色半透明燈光 (靜態圓圈)
+    # 6. 繪製 verified_data：黃色燈光
     for _, row in verified_data.iterrows():
         folium.CircleMarker(
             location=[row['Latitude'], row['Longitude']],
             radius=12,
-            popup=f"物種: {row['Review Identity']}",
+            popup=f"專家辨識: {row['Review Identity']}",
             color="#ffc107",
             fill=True,
             fill_color="#fff176",
-            fill_opacity=0.5,
+            fill_opacity=0.6,
             weight=0
         ).add_to(m)
 
@@ -82,10 +99,10 @@ try:
     st.markdown("### 🐸 台灣蛙鳴空間資料：動態漣漪地圖")
     folium_static(m, width=1100, height=600)
 
-    # 側邊欄統計資訊
+    # 側邊欄
     st.sidebar.title("📊 數據面板")
-    st.sidebar.metric("民眾錄音 (動態藍)", len(raw_data))
-    st.sidebar.metric("專家審核 (光暈黃)", len(verified_data))
+    st.sidebar.metric("民眾錄音 (藍色漣漪)", len(raw_data))
+    st.sidebar.metric("專家審核 (黃色燈光)", len(verified_data))
 
 except Exception as e:
     st.error(f"地圖啟動失敗：{e}")
